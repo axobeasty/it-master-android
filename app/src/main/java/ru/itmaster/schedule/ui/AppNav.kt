@@ -9,8 +9,10 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.BarChart
@@ -24,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -167,13 +170,25 @@ private fun MainShell(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+            ) {
+                val itemColors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
                     icon = { Icon(Icons.Filled.DateRange, contentDescription = null) },
                     label = { Text("Расписание") },
+                    colors = itemColors,
                 )
                 NavigationBarItem(
                     selected = tab == 1,
@@ -197,18 +212,21 @@ private fun MainShell(
                             },
                         )
                     },
+                    colors = itemColors,
                 )
                 NavigationBarItem(
                     selected = tab == 2,
                     onClick = { tab = 2 },
                     icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                     label = { Text("Профиль") },
+                    colors = itemColors,
                 )
                 NavigationBarItem(
                     selected = tab == 3,
                     onClick = { tab = 3 },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                     label = { Text("Настройки") },
+                    colors = itemColors,
                 )
             }
         },

@@ -1,9 +1,13 @@
 package ru.itmaster.schedule.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.itmaster.schedule.ScheduleRepository
 import ru.itmaster.schedule.data.api.UserDto
+import ru.itmaster.schedule.ui.theme.ItMasterCard
+import ru.itmaster.schedule.ui.theme.SectionCaption
 
 @Composable
 fun ProfileRoute(
@@ -49,12 +55,13 @@ fun ProfileRoute(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp),
     ) {
         Text(
             "Профиль",
             style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+            modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
         )
 
         when {
@@ -66,7 +73,7 @@ fun ProfileRoute(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
 
@@ -81,23 +88,22 @@ fun ProfileRoute(
 
             user != null -> {
                 val rows = profileRows(user!!)
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    items(rows, key = { it.first }) { (label, value) ->
-                        Column(Modifier.padding(vertical = 10.dp)) {
-                            Text(
-                                label,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Text(
-                                value,
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
+                ItMasterCard(modifier = Modifier.weight(1f), expandContent = true) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                    ) {
+                        items(rows, key = { it.first }) { (label, value) ->
+                            Column(Modifier.padding(vertical = 10.dp)) {
+                                SectionCaption(label)
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    value,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
                         }
-                        HorizontalDivider()
                     }
                 }
             }
@@ -144,7 +150,11 @@ private fun profileRows(u: UserDto): List<Pair<String, String>> = buildList {
     u.permissions?.let { p ->
         val sched = p.scheduleMy?.let { if (it) "да" else "нет" } ?: "—"
         val tst = p.studentTests?.let { if (it) "да" else "нет" } ?: "—"
+        val stats = p.testsStats?.let { if (it) "да" else "нет" } ?: "—"
+        val admin = p.testsAdmin?.let { if (it) "да" else "нет" } ?: "—"
         add("Доступ: расписание" to sched)
         add("Доступ: тесты" to tst)
+        add("Доступ: статистика тестов" to stats)
+        add("Доступ: админ тестов" to admin)
     }
 }

@@ -1,5 +1,6 @@
 package ru.itmaster.schedule.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +26,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +38,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,6 +65,7 @@ import ru.itmaster.schedule.data.api.TestListItemDto
 import ru.itmaster.schedule.data.api.TestQuestionDto
 import ru.itmaster.schedule.data.api.TestStatsAttemptRowDto
 import ru.itmaster.schedule.data.api.TestStatsResponse
+import ru.itmaster.schedule.ui.theme.SectionCaption
 
 @Composable
 fun TestsRoute(
@@ -87,6 +90,7 @@ fun TestsRoute(
         Column(
             Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -118,8 +122,16 @@ fun TestsRoute(
     }
 
     if (canAccessTestStats) {
-        Column(Modifier.fillMaxSize()) {
-            TabRow(selectedTabIndex = testsMainTab) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            TabRow(
+                selectedTabIndex = testsMainTab,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+            ) {
                 Tab(
                     selected = testsMainTab == 0,
                     onClick = { testsMainTab = 0 },
@@ -179,7 +191,12 @@ private fun TestStatsRoute(
         loading = false
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+    ) {
         Text("Статистика тестов", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
 
@@ -212,6 +229,10 @@ private fun TestStatsRoute(
                             page = 1
                         },
                         label = { Text("Все группы") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
                     )
                     p.groups.forEach { g ->
                         FilterChip(
@@ -221,6 +242,10 @@ private fun TestStatsRoute(
                                 page = 1
                             },
                             label = { Text(g.name) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
                         )
                     }
                 }
@@ -241,7 +266,10 @@ private fun TestStatsRoute(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     item {
-                        Text("Сводка по группам", style = MaterialTheme.typography.titleMedium)
+                        Column {
+                            SectionCaption("Сводка по группам")
+                            Spacer(Modifier.height(6.dp))
+                        }
                     }
                     if (summaryRows.isEmpty()) {
                         item {
@@ -257,7 +285,9 @@ private fun TestStatsRoute(
                             val s = e.value
                             Card(
                                 Modifier.fillMaxWidth(),
-                                elevation = CardDefaults.cardElevation(1.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                elevation = CardDefaults.cardElevation(4.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             ) {
                                 Column(Modifier.padding(12.dp)) {
                                     Text(gName, style = MaterialTheme.typography.titleSmall)
@@ -271,8 +301,11 @@ private fun TestStatsRoute(
                         }
                     }
                     item {
-                        Spacer(Modifier.height(8.dp))
-                        Text("Попытки", style = MaterialTheme.typography.titleMedium)
+                        Column {
+                            Spacer(Modifier.height(8.dp))
+                            SectionCaption("Попытки")
+                            Spacer(Modifier.height(6.dp))
+                        }
                     }
                     if (attemptsData.isEmpty()) {
                         item {
@@ -320,7 +353,9 @@ private fun TestStatsRoute(
 private fun TestStatsAttemptCard(row: TestStatsAttemptRowDto) {
     Card(
         Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(1.dp),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(
@@ -374,7 +409,12 @@ private fun TestsListRoute(
         loading = false
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(16.dp),
+    ) {
         Text("Тестирование", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
 
@@ -414,7 +454,9 @@ private fun TestsListRoute(
 private fun TestListCard(item: TestListItemDto, onOpen: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(2.dp),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(16.dp)) {
             Text(item.title, style = MaterialTheme.typography.titleMedium)
@@ -525,6 +567,7 @@ private fun TestTakeRoute(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text(detail?.title ?: "Тест") },
@@ -533,6 +576,10 @@ private fun TestTakeRoute(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                ),
             )
         },
     ) { padding ->

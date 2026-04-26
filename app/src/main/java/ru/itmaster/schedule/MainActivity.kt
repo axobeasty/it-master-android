@@ -15,7 +15,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -84,12 +87,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             val openTestIdFromNotification by pendingOpenTestId.collectAsState()
             ItMasterTheme {
-                AppNav(
-                    repository = app.repository,
-                    modifier = Modifier.fillMaxSize(),
-                    openTestIdFromNotification = openTestIdFromNotification,
-                    onOpenTestNotificationHandled = { pendingOpenTestId.value = null },
-                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                ) {
+                    AppNav(
+                        repository = app.repository,
+                        modifier = Modifier.fillMaxSize(),
+                        openTestIdFromNotification = openTestIdFromNotification,
+                        onOpenTestNotificationHandled = { pendingOpenTestId.value = null },
+                    )
+                }
             }
         }
     }
