@@ -214,18 +214,27 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun tryInstallDownloadedUpdate(downloadId: Long) {
-        if (!AppUpdateManager.canInstallPackages(this)) {
+        try {
+            if (!AppUpdateManager.canInstallPackages(this)) {
+                Toast.makeText(
+                    this,
+                    "Нужно один раз разрешить установку из этого источника.",
+                    Toast.LENGTH_LONG,
+                ).show()
+                AppUpdateManager.openInstallPermissionSettings(this)
+                return
+            }
+            val ok = runCatching { AppUpdateManager.installDownloadedApk(this, downloadId) }.getOrDefault(false)
+            if (!ok) {
+                Toast.makeText(this, "Не удалось открыть установщик APK", Toast.LENGTH_LONG).show()
+            }
+        } catch (_: SecurityException) {
             Toast.makeText(
                 this,
-                "Нужно один раз разрешить установку из этого источника.",
+                "Разрешите установку приложений для IT-Master в настройках.",
                 Toast.LENGTH_LONG,
             ).show()
             AppUpdateManager.openInstallPermissionSettings(this)
-            return
-        }
-        val ok = runCatching { AppUpdateManager.installDownloadedApk(this, downloadId) }.getOrDefault(false)
-        if (!ok) {
-            Toast.makeText(this, "Не удалось открыть установщик APK", Toast.LENGTH_LONG).show()
         }
     }
 }

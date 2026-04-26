@@ -123,7 +123,12 @@ object AppUpdateManager {
     }
 
     fun canInstallPackages(context: Context): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        return try {
+            context.packageManager.canRequestPackageInstalls()
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     fun installDownloadedApk(context: Context, downloadId: Long): Boolean {
