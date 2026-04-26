@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
             val pending = AppUpdateManager.getPendingDownloadId(this@MainActivity)
             if (id > 0L && id == pending) {
                 AppUpdateManager.clearPendingDownload(this@MainActivity)
-                promptInstallDownloadedUpdate(id)
+                tryInstallDownloadedUpdate(id)
             }
         }
     }
@@ -116,7 +116,7 @@ class MainActivity : ComponentActivity() {
             val status = AppUpdateManager.getDownloadStatus(this, pendingId)
             if (status == DownloadManager.STATUS_SUCCESSFUL) {
                 AppUpdateManager.clearPendingDownload(this)
-                promptInstallDownloadedUpdate(pendingId)
+                tryInstallDownloadedUpdate(pendingId)
             }
         }
     }
@@ -154,13 +154,24 @@ class MainActivity : ComponentActivity() {
 
     private suspend fun checkForAppUpdate(manual: Boolean) {
         if (updatePromptShown && !manual) return
-        val update = AppUpdateManager.checkForUpdate().getOrNull()
+        val update = AppUpdateManager.checkForUpdate().getOrElse { e ->
+            if (manual) {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        e.message ?: "Не удалось проверить обновления",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            return
+        }
         if (update == null) {
             if (manual) {
                 lifecycleScope.launch(Dispatchers.Main) {
                     Toast.makeText(
                         this@MainActivity,
-                        "Обновлений не найдено или GitHub недоступен",
+                        "У вас уже установлена актуальная версия",
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
@@ -202,26 +213,19 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    private fun promptInstallDownloadedUpdate(downloadId: Long) {
-        AlertDialog.Builder(this)
-            .setTitle("Обновление загружено")
-            .setMessage("Установить новую версию сейчас?")
-            .setPositiveButton("Установить") { _, _ ->
-                if (!AppUpdateManager.canInstallPackages(this)) {
-                    Toast.makeText(
-                        this,
-                        "Разрешите установку из этого источника и повторите установку.",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                    AppUpdateManager.openInstallPermissionSettings(this)
-                    return@setPositiveButton
-                }
-                val ok = runCatching { AppUpdateManager.installDownloadedApk(this, downloadId) }.getOrDefault(false)
-                if (!ok) {
-                    Toast.makeText(this, "Не удалось открыть установщик APK", Toast.LENGTH_LONG).show()
-                }
-            }
-            .setNegativeButton("Позже", null)
-            .show()
+    private fun tryInstallDownloadedUpdate(downloadId: Long) {
+        if (!AppUpdateManager.canInstallPackages(this)) {
+            Toast.makeText(
+                this,
+                "Нужно один раз разрешить установку из этого источника.",
+                Toast.LENGTH_LONG,
+            ).show()
+            AppUpdateManager.openInstallPermissionSettings(this)
+            return
+        }
+        val ok = runCatching { AppUpdateManager.installDownloadedApk(this, downloadId) }.getOrDefault(false)
+        if (!ok) {
+            Toast.makeText(this, "Не удалось открыть установщик APK", Toast.LENGTH_LONG).show()
+        }
     }
 }

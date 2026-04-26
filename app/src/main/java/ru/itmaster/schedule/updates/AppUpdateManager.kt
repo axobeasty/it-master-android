@@ -38,7 +38,12 @@ object AppUpdateManager {
         conn.connect()
         val code = conn.responseCode
         if (code !in 200..299) {
-            return@runCatching null
+            val hint = when (code) {
+                404 -> "Релиз не найден или репозиторий private (HTTP 404)."
+                403 -> "GitHub API недоступен (HTTP 403): лимит запросов или запрет доступа."
+                else -> "GitHub API вернул HTTP $code."
+            }
+            throw IllegalStateException("$hint Проверьте публичность репозитория и URL релизов.")
         }
         val body = conn.inputStream.bufferedReader().use { it.readText() }
         parseLatestRelease(body)
