@@ -62,7 +62,7 @@ object LessonScheduler {
 
             val intent = Intent(context, LessonAlarmReceiver::class.java).apply {
                 data = alarmUri(entry.id, weekStart)
-                putExtra(LessonAlarmReceiver.EXTRA_TITLE, "Скоро пара")
+                putExtra(LessonAlarmReceiver.EXTRA_LEAD_MINUTES, minutesBefore)
                 putExtra(LessonAlarmReceiver.EXTRA_BODY, body)
             }
 

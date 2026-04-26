@@ -11,7 +11,15 @@ import ru.itmaster.schedule.R
 class LessonAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         ensureLessonNotificationChannel(context)
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: context.getString(R.string.notify_lesson_title)
+        val nm = NotificationManagerCompat.from(context.applicationContext)
+        if (!nm.areNotificationsEnabled()) return
+
+        val lead = intent.getIntExtra(EXTRA_LEAD_MINUTES, 0)
+        val title = if (lead > 0) {
+            context.getString(R.string.notify_lesson_title_lead, lead)
+        } else {
+            context.getString(R.string.notify_lesson_title)
+        }
         val body = intent.getStringExtra(EXTRA_BODY) ?: ""
 
         val open = Intent(context, MainActivity::class.java).apply {
@@ -25,21 +33,23 @@ class LessonAlarmReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, lessonNotificationChannelId())
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_app_icon)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setContentIntent(pending)
             .setAutoCancel(true)
             .build()
 
-        val id = (intent.data?.toString() ?: title).hashCode()
-        NotificationManagerCompat.from(context).notify(id, notification)
+        val id = (intent.data?.toString() ?: title + body).hashCode()
+        nm.notify(id, notification)
     }
 
     companion object {
         const val EXTRA_TITLE = "title"
         const val EXTRA_BODY = "body"
+        const val EXTRA_LEAD_MINUTES = "lead_minutes"
     }
 }

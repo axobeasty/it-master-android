@@ -22,6 +22,7 @@ class ServerNotificationsWorker(
         val repo = ScheduleRepository(applicationContext)
         if (!repo.getSession().isLoggedIn) return Result.success()
         repo.pollServerNotifications()
+        repo.pollAssignedTestsSnapshot()
         return Result.success()
     }
 

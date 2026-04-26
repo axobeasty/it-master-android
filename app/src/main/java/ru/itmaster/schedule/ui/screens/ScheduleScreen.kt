@@ -25,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import ru.itmaster.schedule.AppPreferences
 import ru.itmaster.schedule.ScheduleRepository
 import ru.itmaster.schedule.data.api.ScheduleEntryDto
 import ru.itmaster.schedule.data.api.ScheduleResponse
@@ -53,6 +55,13 @@ fun ScheduleRoute(
     repository: ScheduleRepository,
 ) {
     val context = LocalContext.current.applicationContext
+    val notifyPrefs by repository.appPreferencesFlow.collectAsState(
+        initial = AppPreferences(
+            onboardingDone = true,
+            notifyBeforeMinutes = 15,
+            notificationsEnabled = true,
+        ),
+    )
     var weekMonday by remember {
         mutableStateOf(LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
     }
@@ -72,15 +81,15 @@ fun ScheduleRoute(
         loading = false
     }
 
-    LaunchedEffect(schedule, weekMonday) {
+    LaunchedEffect(schedule, weekMonday, notifyPrefs.notifyBeforeMinutes, notifyPrefs.notificationsEnabled) {
         val s = schedule ?: return@LaunchedEffect
         if (weekMonday != LessonScheduler.currentWeekMonday()) return@LaunchedEffect
         LessonScheduler.updateFromSchedule(
             context,
             s,
             weekMonday,
-            repository.getNotifyBeforeMinutes(),
-            repository.areNotificationsEnabled(),
+            notifyPrefs.notifyBeforeMinutes,
+            notifyPrefs.notificationsEnabled,
         )
     }
 

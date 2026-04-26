@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,7 +41,12 @@ private const val RouteLogin = "login"
 private const val RouteMain = "main"
 
 @Composable
-fun AppNav(repository: ScheduleRepository, modifier: Modifier = Modifier) {
+fun AppNav(
+    repository: ScheduleRepository,
+    modifier: Modifier = Modifier,
+    openTestIdFromNotification: Long? = null,
+    onOpenTestNotificationHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val context = LocalContext.current.applicationContext
     var start by remember { mutableStateOf<String?>(null) }
@@ -96,6 +102,8 @@ fun AppNav(repository: ScheduleRepository, modifier: Modifier = Modifier) {
                         popUpTo(RouteMain) { inclusive = true }
                     }
                 },
+                openTestIdFromNotification = openTestIdFromNotification,
+                onOpenTestNotificationHandled = onOpenTestNotificationHandled,
             )
         }
     }
@@ -105,9 +113,12 @@ fun AppNav(repository: ScheduleRepository, modifier: Modifier = Modifier) {
 private fun MainShell(
     repository: ScheduleRepository,
     onRequireLogin: () -> Unit,
+    openTestIdFromNotification: Long?,
+    onOpenTestNotificationHandled: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var canAccessTests by remember { mutableStateOf(true) }
+    var externalOpenTestId by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         repository.loadMe().fold(
@@ -129,6 +140,14 @@ private fun MainShell(
                 onRequireLogin()
             }
         }
+    }
+
+    LaunchedEffect(openTestIdFromNotification, canAccessTests) {
+        val id = openTestIdFromNotification ?: return@LaunchedEffect
+        if (id <= 0L || !canAccessTests) return@LaunchedEffect
+        tab = 1
+        externalOpenTestId = id
+        onOpenTestNotificationHandled()
     }
 
     Scaffold(
@@ -171,6 +190,8 @@ private fun MainShell(
                 1 -> TestsRoute(
                     repository = repository,
                     canAccessTests = canAccessTests,
+                    externalOpenTestId = externalOpenTestId,
+                    onExternalOpenHandled = { externalOpenTestId = 0L },
                 )
                 2 -> ProfileRoute(repository = repository)
                 3 -> SettingsRoute(repository = repository)

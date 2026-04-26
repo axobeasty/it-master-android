@@ -61,9 +61,18 @@ import ru.itmaster.schedule.data.api.TestQuestionDto
 fun TestsRoute(
     repository: ScheduleRepository,
     canAccessTests: Boolean,
+    externalOpenTestId: Long = 0L,
+    onExternalOpenHandled: () -> Unit = {},
 ) {
     var openTestId by remember { mutableLongStateOf(0L) }
     var listRefresh by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(externalOpenTestId) {
+        if (externalOpenTestId > 0L) {
+            openTestId = externalOpenTestId
+            onExternalOpenHandled()
+        }
+    }
 
     if (!canAccessTests) {
         Column(

@@ -9,6 +9,7 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         val app = context.applicationContext
         RefreshAlarmsWorker.enqueue(app)
+        ServerNotificationsWorker.enqueuePeriodic(app)
         ServerNotificationsWorker.enqueueOnce(app)
     }
 }

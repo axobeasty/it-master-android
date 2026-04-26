@@ -24,6 +24,7 @@ import ru.itmaster.schedule.data.api.UserDto
 import ru.itmaster.schedule.notifications.LessonScheduler
 import ru.itmaster.schedule.notifications.RefreshAlarmsWorker
 import ru.itmaster.schedule.notifications.SERVER_ASSIGN_TEST_TITLE
+import ru.itmaster.schedule.notifications.SERVER_TEST_SUBMITTED_TITLE
 import ru.itmaster.schedule.notifications.ServerNotificationsWorker
 import ru.itmaster.schedule.notifications.showServerPushNotification
 import java.io.IOException
@@ -32,28 +33,22 @@ class ScheduleRepository(context: Context) {
 
     private val appContext = context.applicationContext
 
-    private val keyBaseUrl = stringPreferencesKey("base_url")
     private val keyToken = stringPreferencesKey("token")
-    private val keyUseHttp = booleanPreferencesKey("server_use_http")
     private val keyOnboardingDone = booleanPreferencesKey("onboarding_done")
     private val keyNotifyMinutes = intPreferencesKey("notify_before_minutes")
     private val keyNotifyEnabled = booleanPreferencesKey("notifications_enabled")
     private val keyLastNotifId = longPreferencesKey("last_server_notification_id")
     private val keyNotifBootstrapped = booleanPreferencesKey("server_notifications_bootstrapped")
+    /** Снимок id тестов из API: новые id по сравнению с прошлым опросом → локальное уведомление. */
+    private val keyTestsListBootstrapped = booleanPreferencesKey("tests_list_poll_bootstrapped")
+    private val keyKnownTestIds = stringPreferencesKey("known_assigned_test_ids")
 
-    private fun defaultOrigin(): String = BuildConfig.FIXED_API_ORIGIN.trimEnd('/')
-
-    suspend fun apiOrigin(): String {
-        val stored = appContext.sessionDataStore.data.first()[keyBaseUrl]?.trim()?.trimEnd('/')
-        if (!stored.isNullOrBlank()) {
-            return stored
-        }
-        return defaultOrigin()
-    }
+    /** Origin API из сборки (`build.gradle.kts` → `FIXED_API_ORIGIN`). */
+    fun apiOrigin(): String = BuildConfig.FIXED_API_ORIGIN.trim().trimEnd('/')
 
     val sessionFlow: Flow<StoredSession> = appContext.sessionDataStore.data.map { prefs ->
         StoredSession(
-            baseUrl = prefs[keyBaseUrl],
+            baseUrl = apiOrigin(),
             token = prefs[keyToken],
         )
     }
@@ -63,7 +58,6 @@ class ScheduleRepository(context: Context) {
             onboardingDone = prefs[keyOnboardingDone] == true,
             notifyBeforeMinutes = prefs[keyNotifyMinutes] ?: DEFAULT_NOTIFY_MINUTES,
             notificationsEnabled = prefs[keyNotifyEnabled] != false,
-            serverUseHttp = prefs[keyUseHttp] == true,
         )
     }
 
@@ -77,19 +71,10 @@ class ScheduleRepository(context: Context) {
     suspend fun areNotificationsEnabled(): Boolean =
         appContext.sessionDataStore.data.first()[keyNotifyEnabled] != false
 
-    /**
-     * Первый запуск: адрес сервера (домен или IP), схема http/https, напоминания о парах.
-     */
-    suspend fun completeOnboarding(
-        serverHostOrUrl: String,
-        useHttp: Boolean,
-        notifyBeforeMinutes: Int,
-    ) {
-        val origin = ApiFactory.resolveServerOrigin(serverHostOrUrl, useHttp)
+    /** Первый запуск: напоминания о парах. Адрес API задаётся в сборке приложения. */
+    suspend fun completeOnboarding(notifyBeforeMinutes: Int) {
         appContext.sessionDataStore.edit {
             it[keyOnboardingDone] = true
-            it[keyBaseUrl] = origin
-            it[keyUseHttp] = useHttp
             it[keyNotifyMinutes] = notifyBeforeMinutes.coerceIn(1, 120)
             it[keyNotifyEnabled] = true
         }
@@ -107,26 +92,11 @@ class ScheduleRepository(context: Context) {
         RefreshAlarmsWorker.enqueue(appContext)
     }
 
-    /**
-     * Смена сервера в настройках: новый origin и сброс сессии (нужен повторный вход).
-     */
-    suspend fun updateServerEndpoint(serverHostOrUrl: String, useHttp: Boolean) {
-        val origin = ApiFactory.resolveServerOrigin(serverHostOrUrl, useHttp)
-        LessonScheduler.cancelAll(appContext)
-        ServerNotificationsWorker.cancelAll(appContext)
-        appContext.sessionDataStore.edit {
-            it[keyBaseUrl] = origin
-            it[keyUseHttp] = useHttp
-            it.remove(keyToken)
-            it.remove(keyLastNotifId)
-            it.remove(keyNotifBootstrapped)
-        }
-    }
-
-    suspend fun saveSession(token: String, origin: String) {
+    suspend fun saveSession(token: String) {
         appContext.sessionDataStore.edit {
             it[keyToken] = token
-            it[keyBaseUrl] = origin.trimEnd('/')
+            it.remove(keyTestsListBootstrapped)
+            it.remove(keyKnownTestIds)
         }
     }
 
@@ -150,16 +120,17 @@ class ScheduleRepository(context: Context) {
             it.remove(keyToken)
             it.remove(keyLastNotifId)
             it.remove(keyNotifBootstrapped)
+            it.remove(keyTestsListBootstrapped)
+            it.remove(keyKnownTestIds)
         }
     }
 
     suspend fun login(login: String, password: String): Result<LoginResponse> =
         withContext(Dispatchers.IO) {
             try {
-                val origin = apiOrigin()
-                val api = ApiFactory.create(origin)
+                val api = ApiFactory.create(apiOrigin())
                 val response = api.login(LoginRequest(login = login, password = password))
-                saveSession(response.token, origin)
+                saveSession(response.token)
                 Result.success(response)
             } catch (e: HttpException) {
                 val msg = e.response()?.errorBody()?.string()?.let { parseErrorMessage(it) }
@@ -234,7 +205,7 @@ class ScheduleRepository(context: Context) {
                 var maxSeen = lastId
                 for (item in res.items) {
                     maxSeen = maxOf(maxSeen, item.id)
-                    if (item.title == SERVER_ASSIGN_TEST_TITLE) {
+                    if (item.title == SERVER_ASSIGN_TEST_TITLE || item.title == SERVER_TEST_SUBMITTED_TITLE) {
                         val nid = (2_000_000 + (item.id % 500_000L)).toInt()
                         showServerPushNotification(appContext, item.title, item.message, nid)
                     }
@@ -243,6 +214,49 @@ class ScheduleRepository(context: Context) {
                     appContext.sessionDataStore.edit { it[keyLastNotifId] = maxSeen }
                 }
             } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
+     * Фоновая проверка: GET список назначенных тестов и сравнение с прошлым снимком id.
+     * Не зависит от таблицы notifs на сервере. Первый успешный ответ только запоминает id без уведомлений.
+     */
+    suspend fun pollAssignedTestsSnapshot() {
+        withContext(Dispatchers.IO) {
+            if (getSession().token == null) return@withContext
+            val tests = loadTestsList().getOrNull() ?: return@withContext
+            val currentIds = tests.map { it.id }.toSet()
+            val snap = appContext.sessionDataStore.data.first()
+            val bootstrapped = snap[keyTestsListBootstrapped] == true
+            val prevIds = snap[keyKnownTestIds]
+                ?.split(',')
+                ?.mapNotNull { it.trim().toLongOrNull() }
+                ?.toSet()
+                ?: emptySet()
+
+            if (!bootstrapped) {
+                appContext.sessionDataStore.edit {
+                    it[keyTestsListBootstrapped] = true
+                    it[keyKnownTestIds] = currentIds.sorted().joinToString(",")
+                }
+                return@withContext
+            }
+
+            val added = currentIds - prevIds
+            if (added.isNotEmpty()) {
+                for (id in added.sorted()) {
+                    val t = tests.find { it.id == id }
+                    val body = t?.title?.takeIf { it.isNotBlank() }
+                        ?.let { title -> "«$title»" }
+                        ?: "Вам доступен новый тест"
+                    val nid = (3_000_000 + (id % 500_000L)).toInt()
+                    showServerPushNotification(appContext, "Новый тест", body, nid, openTestId = id)
+                }
+            }
+
+            appContext.sessionDataStore.edit {
+                it[keyKnownTestIds] = currentIds.sorted().joinToString(",")
             }
         }
     }
@@ -334,7 +348,7 @@ class ScheduleRepository(context: Context) {
             text.contains("CertPathValidatorException", ignoreCase = true) ||
             text.contains("unable to find valid certification path", ignoreCase = true)
         ) {
-            return "Проблема HTTPS: Android не принимает сертификат. Проверьте цепочку сертификатов на сервере или включите HTTP в настройках первого экрана."
+            return "Проблема HTTPS: Android не принимает сертификат. Исправьте сертификат на сервере или пересоберите приложение с http:// в FIXED_API_ORIGIN (только debug/внутренняя сеть)."
         }
         return "Нет сети или сервер недоступен: ${e.message ?: e.javaClass.simpleName}"
     }
@@ -365,5 +379,4 @@ data class AppPreferences(
     val onboardingDone: Boolean,
     val notifyBeforeMinutes: Int,
     val notificationsEnabled: Boolean,
-    val serverUseHttp: Boolean = false,
 )

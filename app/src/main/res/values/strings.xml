@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">IT-Master</string>
     <string name="notify_lesson_title">Скоро пара</string>
+    <string name="notify_lesson_title_lead">Пара через %d мин</string>
 </resources>

@@ -1,20 +1,16 @@
 package ru.itmaster.schedule.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.itmaster.schedule.BuildConfig
@@ -35,18 +30,12 @@ import ru.itmaster.schedule.ScheduleRepository
 @Composable
 fun SettingsRoute(repository: ScheduleRepository) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    var serverHost by remember { mutableStateOf("") }
-    var useHttp by remember { mutableStateOf(false) }
     var notifyEnabled by remember { mutableStateOf(true) }
     var notifyMinutes by remember { mutableStateOf(15) }
     var loaded by remember { mutableStateOf(false) }
     val notifyOptions = remember { listOf(5, 10, 15, 30, 45) }
 
     LaunchedEffect(Unit) {
-        val origin = repository.apiOrigin()
-        useHttp = origin.startsWith("http://", ignoreCase = true)
-        serverHost = origin.removePrefix("https://").removePrefix("http://").trimEnd('/')
         notifyMinutes = repository.getNotifyBeforeMinutes()
         notifyEnabled = repository.areNotificationsEnabled()
         loaded = true
@@ -69,53 +58,17 @@ fun SettingsRoute(repository: ScheduleRepository) {
             return@Column
         }
 
+        Text("Уведомления о парах", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Сервер API",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Text(
-            "После смены адреса сессия сбрасывается — войдите снова.",
+            "Напоминание приходит за выбранное число минут до начала пары по текущей неделе расписания (будильник в статус-баре). Нужно разрешение на уведомления (Android 13+).",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedTextField(
-            value = serverHost,
-            onValueChange = { serverHost = it },
-            label = { Text("Домен или IP") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            "О новых тестах: приложение периодически запрашивает список назначенных тестов (и уведомления) — при возврате на экран и примерно каждые 15 минут в фоне.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Column {
-            Text("HTTP вместо HTTPS", style = MaterialTheme.typography.bodyMedium)
-            Switch(checked = useHttp, onCheckedChange = { useHttp = it })
-        }
-        Button(
-            onClick = {
-                val h = serverHost.trim()
-                if (h.isEmpty()) {
-                    Toast.makeText(context, "Укажите адрес сервера", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-                scope.launch {
-                    try {
-                        repository.updateServerEndpoint(h, useHttp)
-                        Toast.makeText(
-                            context,
-                            "Сервер сохранён. Выполните вход снова.",
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    } catch (e: IllegalArgumentException) {
-                        Toast.makeText(context, e.message ?: "Ошибка", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Применить адрес сервера")
-        }
-
-        Spacer(Modifier.padding(4.dp))
-        Text("Уведомления о парах", style = MaterialTheme.typography.titleMedium)
         Column {
             Text("Включить напоминания", style = MaterialTheme.typography.bodyMedium)
             Switch(

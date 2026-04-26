@@ -14,13 +14,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -32,11 +29,6 @@ import kotlinx.coroutines.launch
 import ru.itmaster.schedule.BuildConfig
 import ru.itmaster.schedule.ScheduleRepository
 
-private fun defaultServerHost(): String {
-    val o = BuildConfig.FIXED_API_ORIGIN.trim().trimEnd('/')
-    return o.removePrefix("https://").removePrefix("http://")
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingRoute(
@@ -44,13 +36,8 @@ fun OnboardingRoute(
     onFinished: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    var serverHost by remember { mutableStateOf(defaultServerHost()) }
-    var useHttp by remember {
-        mutableStateOf(BuildConfig.FIXED_API_ORIGIN.trim().startsWith("http://", ignoreCase = true))
-    }
     val notifyOptions = remember { listOf(5, 10, 15, 30, 45) }
     var notifyMinutes by remember { mutableIntStateOf(15) }
-    var error by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = Modifier
@@ -66,46 +53,13 @@ fun OnboardingRoute(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Укажите адрес сервера Laravel (тот же домен, что и в браузере). Приложение ходит в API по пути /api.",
+            text = "Адрес сервера API задан в приложении: ${BuildConfig.FIXED_API_ORIGIN.trimEnd('/')}. Ниже — только напоминания о парах.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
 
-        OutlinedTextField(
-            value = serverHost,
-            onValueChange = {
-                serverHost = it
-                error = null
-            },
-            label = { Text("Домен или IP сервера") },
-            placeholder = { Text("example.edu") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(12.dp))
-        Column(Modifier.fillMaxWidth()) {
-            Text(
-                "Использовать HTTP вместо HTTPS",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "Включайте только в локальной сети или при проблемах с сертификатом.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Switch(
-                checked = useHttp,
-                onCheckedChange = {
-                    useHttp = it
-                    error = null
-                },
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
         Text(
             "Напоминание о паре до начала (минуты)",
             style = MaterialTheme.typography.titleSmall,
@@ -125,31 +79,13 @@ fun OnboardingRoute(
             }
         }
 
-        error?.let {
-            Spacer(Modifier.height(12.dp))
-            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        }
-
         Spacer(Modifier.height(24.dp))
 
         Button(
             onClick = {
-                val host = serverHost.trim()
-                if (host.isEmpty()) {
-                    error = "Укажите адрес сервера"
-                    return@Button
-                }
                 scope.launch {
-                    try {
-                        repository.completeOnboarding(
-                            serverHostOrUrl = host,
-                            useHttp = useHttp,
-                            notifyBeforeMinutes = notifyMinutes,
-                        )
-                        onFinished()
-                    } catch (e: IllegalArgumentException) {
-                        error = e.message ?: "Некорректный адрес"
-                    }
+                    repository.completeOnboarding(notifyBeforeMinutes = notifyMinutes)
+                    onFinished()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
