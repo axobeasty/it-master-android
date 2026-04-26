@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - Для HTTPS доверяем системным УЦ и пользовательским (сертификаты, установленные в настройках устройства).
+  - Это не заменяет исправление сервера: при неполной цепочке (без intermediate) нужен fullchain на nginx/Apache.
+  - HTTP (cleartext) оставлен для локальной отладки (10.0.2.2, localhost).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
