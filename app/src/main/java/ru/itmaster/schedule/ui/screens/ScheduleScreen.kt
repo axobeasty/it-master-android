@@ -1,6 +1,7 @@
 package ru.itmaster.schedule.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -32,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -55,6 +58,7 @@ fun ScheduleRoute(
     repository: ScheduleRepository,
 ) {
     val context = LocalContext.current.applicationContext
+    var horizontalDragTotal by remember { mutableStateOf(0f) }
     val notifyPrefs by repository.appPreferencesFlow.collectAsState(
         initial = AppPreferences(
             onboardingDone = true,
@@ -102,78 +106,100 @@ fun ScheduleRoute(
             )
         },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = {
-                    weekMonday = weekMonday.minusDays(7)
-                }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Предыдущая неделя")
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Неделя с ${weekMonday.format(ruDate)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                .pointerInput(weekMonday) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            horizontalDragTotal += dragAmount
+                            change.consume()
+                        },
+                        onDragEnd = {
+                            val threshold = 120f
+                            when {
+                                horizontalDragTotal > threshold -> weekMonday = weekMonday.minusDays(7)
+                                horizontalDragTotal < -threshold -> weekMonday = weekMonday.plusDays(7)
+                            }
+                            horizontalDragTotal = 0f
+                        },
+                        onDragCancel = { horizontalDragTotal = 0f },
                     )
-                    schedule?.group?.let { g ->
+                },
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = {
+                        weekMonday = weekMonday.minusDays(7)
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Предыдущая неделя")
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "Группа: $g",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = "Неделя с ${weekMonday.format(ruDate)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                         )
+                        schedule?.group?.let { g ->
+                            Text(
+                                "Группа: $g",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    IconButton(onClick = {
+                        weekMonday = weekMonday.plusDays(7)
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Следующая неделя")
                     }
                 }
-                IconButton(onClick = {
-                    weekMonday = weekMonday.plusDays(7)
-                }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Следующая неделя")
-                }
-            }
 
-            when {
-                loading -> {
-                    Spacer(Modifier.weight(1f))
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                    Spacer(Modifier.weight(1f))
-                }
+                when {
+                    loading -> {
+                        Spacer(Modifier.weight(1f))
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Spacer(Modifier.weight(1f))
+                    }
 
-                error != null && schedule == null -> {
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                    )
-                    Spacer(Modifier.weight(1f))
-                }
-
-                else -> {
-                    val entries = schedule?.entries.orEmpty()
-                    if (entries.isEmpty()) {
+                    error != null && schedule == null -> {
                         Spacer(Modifier.weight(1f))
                         Text(
-                            "На эту неделю пар нет (или у вас не указана группа).",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            error!!,
+                            color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.align(Alignment.CenterHorizontally),
                         )
                         Spacer(Modifier.weight(1f))
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(vertical = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            items(entries, key = { it.id }) { entry ->
-                                ScheduleEntryCard(entry)
+                    }
+
+                    else -> {
+                        val entries = schedule?.entries.orEmpty()
+                        if (entries.isEmpty()) {
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "На эту неделю пар нет (или у вас не указана группа).",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
+                            )
+                            Spacer(Modifier.weight(1f))
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(vertical = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(entries, key = { it.id }) { entry ->
+                                    ScheduleEntryCard(entry)
+                                }
                             }
                         }
                     }

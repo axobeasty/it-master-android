@@ -143,9 +143,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun maybeCheckForAppUpdate() {
-        if (updatePromptShown) return
-        val update = AppUpdateManager.checkForUpdate().getOrNull() ?: return
-        if (AppUpdateManager.isSkipped(this, update.latestVersionName)) return
+        checkForAppUpdate(manual = false)
+    }
+
+    fun checkForUpdatesManually() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            checkForAppUpdate(manual = true)
+        }
+    }
+
+    private suspend fun checkForAppUpdate(manual: Boolean) {
+        if (updatePromptShown && !manual) return
+        val update = AppUpdateManager.checkForUpdate().getOrNull()
+        if (update == null) {
+            if (manual) {
+                lifecycleScope.launch(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Обновлений не найдено или GitHub недоступен",
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            return
+        }
+        if (!manual && AppUpdateManager.isSkipped(this, update.latestVersionName)) return
         updatePromptShown = true
         lifecycleScope.launch(Dispatchers.Main) {
             showUpdateDialog(update)

@@ -13,6 +13,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,8 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.itmaster.schedule.MainActivity
 import ru.itmaster.schedule.BuildConfig
 import ru.itmaster.schedule.ScheduleRepository
 
@@ -30,6 +33,7 @@ import ru.itmaster.schedule.ScheduleRepository
 @Composable
 fun SettingsRoute(repository: ScheduleRepository) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var notifyEnabled by remember { mutableStateOf(true) }
     var notifyMinutes by remember { mutableStateOf(15) }
     var loaded by remember { mutableStateOf(false) }
@@ -103,5 +107,10 @@ fun SettingsRoute(repository: ScheduleRepository) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Button(
+            onClick = { (context as? MainActivity)?.checkForUpdatesManually() },
+        ) {
+            Text("Проверить обновления")
+        }
     }
 }
