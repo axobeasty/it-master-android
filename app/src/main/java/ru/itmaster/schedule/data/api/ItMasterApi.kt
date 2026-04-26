@@ -28,6 +28,14 @@ interface ItMasterApi {
         @Query("bootstrap") bootstrap: Int? = null,
     ): NotificationsResponse
 
+    /** Статистика тестов (права tests_stats / tests_admin на сервере). */
+    @GET("mobile/test-stats")
+    suspend fun testStats(
+        @Header("Authorization") authorization: String,
+        @Query("group_id") groupId: Long? = null,
+        @Query("page") page: Int? = null,
+    ): TestStatsResponse
+
     /** Тот же контроллер, что и GET /api/mobile/tests (на сервере дублируется для совместимости). */
     @GET("mobile/student-tests")
     suspend fun tests(@Header("Authorization") authorization: String): TestsListResponse

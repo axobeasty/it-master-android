@@ -50,7 +50,7 @@ fun LoginRoute(
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
-            text = "Вход для просмотра расписания",
+            text = "Вход: расписание, тесты и статистика (по правам учётной записи)",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -118,7 +118,7 @@ fun LoginRoute(
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Нужна учётная запись и право «Расписание» и/или «Тестирование»; для расписания и тестов — привязка к группе.",
+            text = "Нужны права «Расписание», «Тестирование» и/или «Статистика/админ тестов». Расписание и сдача тестов — при наличии группы у профиля.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

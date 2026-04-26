@@ -20,6 +20,7 @@ import ru.itmaster.schedule.data.api.ScheduleResponse
 import ru.itmaster.schedule.data.api.SubmitTestResponse
 import ru.itmaster.schedule.data.api.TestBeginResponse
 import ru.itmaster.schedule.data.api.TestListItemDto
+import ru.itmaster.schedule.data.api.TestStatsResponse
 import ru.itmaster.schedule.data.api.UserDto
 import ru.itmaster.schedule.notifications.LessonScheduler
 import ru.itmaster.schedule.notifications.RefreshAlarmsWorker
@@ -42,6 +43,8 @@ class ScheduleRepository(context: Context) {
     /** Снимок id тестов из API: новые id по сравнению с прошлым опросом → локальное уведомление. */
     private val keyTestsListBootstrapped = booleanPreferencesKey("tests_list_poll_bootstrapped")
     private val keyKnownTestIds = stringPreferencesKey("known_assigned_test_ids")
+    /** Для фонового опроса списка тестов: false — только сотрудник (статистика), без student_tests. */
+    private val keyCachedStudentTestsAllowed = booleanPreferencesKey("cached_student_tests_allowed")
 
     /** Origin API из сборки (`build.gradle.kts` → `FIXED_API_ORIGIN`). */
     fun apiOrigin(): String = BuildConfig.FIXED_API_ORIGIN.trim().trimEnd('/')
@@ -103,6 +106,7 @@ class ScheduleRepository(context: Context) {
     suspend fun clearSession() {
         appContext.sessionDataStore.edit {
             it.remove(keyToken)
+            it.remove(keyCachedStudentTestsAllowed)
         }
     }
 
@@ -122,6 +126,7 @@ class ScheduleRepository(context: Context) {
             it.remove(keyNotifBootstrapped)
             it.remove(keyTestsListBootstrapped)
             it.remove(keyKnownTestIds)
+            it.remove(keyCachedStudentTestsAllowed)
         }
     }
 
@@ -131,6 +136,7 @@ class ScheduleRepository(context: Context) {
                 val api = ApiFactory.create(apiOrigin())
                 val response = api.login(LoginRequest(login = login, password = password))
                 saveSession(response.token)
+                cacheMobilePermissionsFromUser(response.user)
                 Result.success(response)
             } catch (e: HttpException) {
                 val msg = e.response()?.errorBody()?.string()?.let { parseErrorMessage(it) }
@@ -167,7 +173,9 @@ class ScheduleRepository(context: Context) {
             val token = getSession().token ?: return@withContext Result.failure(Exception("Не авторизован"))
             try {
                 val api = ApiFactory.create(apiOrigin())
-                Result.success(api.me("Bearer $token").user)
+                val user = api.me("Bearer $token").user
+                cacheMobilePermissionsFromUser(user)
+                Result.success(user)
             } catch (e: HttpException) {
                 if (e.code() == 401) {
                     appContext.sessionDataStore.edit { it.remove(keyToken) }
@@ -225,6 +233,8 @@ class ScheduleRepository(context: Context) {
     suspend fun pollAssignedTestsSnapshot() {
         withContext(Dispatchers.IO) {
             if (getSession().token == null) return@withContext
+            val snapPrefs = appContext.sessionDataStore.data.first()
+            if (snapPrefs[keyCachedStudentTestsAllowed] == false) return@withContext
             val tests = loadTestsList().getOrNull() ?: return@withContext
             val currentIds = tests.map { it.id }.toSet()
             val snap = appContext.sessionDataStore.data.first()
@@ -281,6 +291,32 @@ class ScheduleRepository(context: Context) {
             }
         }
 
+    suspend fun loadTestStats(groupId: Long?, page: Int?): Result<TestStatsResponse> =
+        withContext(Dispatchers.IO) {
+            val token = getSession().token ?: return@withContext Result.failure(Exception("Не авторизован"))
+            try {
+                val api = ApiFactory.create(apiOrigin())
+                Result.success(
+                    api.testStats(
+                        authorization = "Bearer $token",
+                        groupId = groupId?.takeIf { it > 0L },
+                        page = page?.takeIf { it > 0 },
+                    ),
+                )
+            } catch (e: HttpException) {
+                if (e.code() == 401) {
+                    appContext.sessionDataStore.edit { it.remove(keyToken) }
+                }
+                val msg = httpExceptionMessage(
+                    e,
+                    notFoundDetail = "На сервере нет API статистики тестов. Обновите бэкенд.",
+                )
+                Result.failure(Exception(msg))
+            } catch (e: IOException) {
+                Result.failure(Exception(networkFailureMessage(e)))
+            }
+        }
+
     suspend fun beginTestSession(testId: Long): Result<TestBeginResponse> =
         withContext(Dispatchers.IO) {
             val token = getSession().token ?: return@withContext Result.failure(Exception("Не авторизован"))
@@ -320,6 +356,12 @@ class ScheduleRepository(context: Context) {
                 Result.failure(Exception(networkFailureMessage(e)))
             }
         }
+
+    private suspend fun cacheMobilePermissionsFromUser(user: UserDto) {
+        appContext.sessionDataStore.edit {
+            it[keyCachedStudentTestsAllowed] = user.permissions?.studentTests != false
+        }
+    }
 
     private fun httpExceptionMessage(e: HttpException, notFoundDetail: String? = null): String {
         val raw = e.response()?.errorBody()?.string().orEmpty()

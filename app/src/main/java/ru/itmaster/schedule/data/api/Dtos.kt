@@ -20,6 +20,8 @@ data class MeResponse(
 data class UserPermissionsDto(
     @SerializedName("schedule_my") val scheduleMy: Boolean? = null,
     @SerializedName("student_tests") val studentTests: Boolean? = null,
+    @SerializedName("tests_admin") val testsAdmin: Boolean? = null,
+    @SerializedName("tests_stats") val testsStats: Boolean? = null,
 )
 
 data class UserDto(
@@ -152,4 +154,49 @@ data class SubmitTestAttemptDto(
     val grade: String,
     @SerializedName("grade_label") val gradeLabel: String,
     @SerializedName("submitted_at") val submittedAt: String? = null,
+)
+
+data class TestStatsFilterDto(
+    @SerializedName("group_id") val groupId: Long,
+    val label: String,
+)
+
+data class TestStatsGroupOptionDto(
+    val id: Long,
+    val name: String,
+)
+
+data class GroupTestStatsSummaryDto(
+    val count: Int,
+    val avg: Double,
+    val min: Double,
+    val max: Double,
+)
+
+data class TestStatsAttemptsPageDto(
+    @SerializedName("current_page") val currentPage: Int,
+    @SerializedName("per_page") val perPage: Int,
+    val total: Int,
+    @SerializedName("last_page") val lastPage: Int,
+    val data: List<TestStatsAttemptRowDto> = emptyList(),
+)
+
+data class TestStatsAttemptRowDto(
+    val id: Long,
+    @SerializedName("student_fio") val studentFio: String?,
+    @SerializedName("group_name") val groupName: String?,
+    @SerializedName("test_title") val testTitle: String?,
+    val score: Int,
+    @SerializedName("max_score") val maxScore: Int,
+    val percentage: Double,
+    val grade: String,
+    @SerializedName("grade_label") val gradeLabel: String,
+    @SerializedName("submitted_at") val submittedAt: String? = null,
+)
+
+data class TestStatsResponse(
+    val filter: TestStatsFilterDto,
+    val groups: List<TestStatsGroupOptionDto> = emptyList(),
+    @SerializedName("stats_by_group") val statsByGroup: Map<String, GroupTestStatsSummaryDto> = emptyMap(),
+    val attempts: TestStatsAttemptsPageDto,
 )

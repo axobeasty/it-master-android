@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -117,15 +118,24 @@ private fun MainShell(
     onOpenTestNotificationHandled: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
+    var canAccessSchedule by remember { mutableStateOf(true) }
     var canAccessTests by remember { mutableStateOf(true) }
+    var canAccessTestStats by remember { mutableStateOf(false) }
     var externalOpenTestId by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(Unit) {
         repository.loadMe().fold(
             onSuccess = { u ->
+                canAccessSchedule = u.permissions?.scheduleMy != false
                 canAccessTests = u.permissions?.studentTests != false
+                canAccessTestStats = u.permissions?.testsStats == true ||
+                    u.permissions?.testsAdmin == true
             },
-            onFailure = { canAccessTests = true },
+            onFailure = {
+                canAccessSchedule = true
+                canAccessTests = true
+                canAccessTestStats = false
+            },
         )
     }
 
@@ -150,6 +160,12 @@ private fun MainShell(
         onOpenTestNotificationHandled()
     }
 
+    LaunchedEffect(canAccessSchedule, canAccessTests, canAccessTestStats) {
+        if (!canAccessSchedule && (canAccessTests || canAccessTestStats)) {
+            tab = 1
+        }
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -162,8 +178,25 @@ private fun MainShell(
                 NavigationBarItem(
                     selected = tab == 1,
                     onClick = { tab = 1 },
-                    icon = { Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = null) },
-                    label = { Text("Тесты") },
+                    icon = {
+                        Icon(
+                            if (canAccessTestStats && !canAccessTests) {
+                                Icons.Filled.BarChart
+                            } else {
+                                Icons.AutoMirrored.Filled.ViewList
+                            },
+                            contentDescription = null,
+                        )
+                    },
+                    label = {
+                        Text(
+                            if (canAccessTestStats && !canAccessTests) {
+                                "Статистика"
+                            } else {
+                                "Тесты"
+                            },
+                        )
+                    },
                 )
                 NavigationBarItem(
                     selected = tab == 2,
@@ -186,10 +219,14 @@ private fun MainShell(
                 .fillMaxSize(),
         ) {
             when (tab) {
-                0 -> ScheduleRoute(repository = repository)
+                0 -> ScheduleRoute(
+                    repository = repository,
+                    canAccessSchedule = canAccessSchedule,
+                )
                 1 -> TestsRoute(
                     repository = repository,
                     canAccessTests = canAccessTests,
+                    canAccessTestStats = canAccessTestStats,
                     externalOpenTestId = externalOpenTestId,
                     onExternalOpenHandled = { externalOpenTestId = 0L },
                 )

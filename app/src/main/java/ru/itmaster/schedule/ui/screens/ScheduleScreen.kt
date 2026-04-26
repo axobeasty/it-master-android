@@ -56,7 +56,25 @@ private val ruDate: DateTimeFormatter =
 @Composable
 fun ScheduleRoute(
     repository: ScheduleRepository,
+    canAccessSchedule: Boolean = true,
 ) {
+    if (!canAccessSchedule) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "У вас нет доступа к расписанию.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+
     val context = LocalContext.current.applicationContext
     var horizontalDragTotal by remember { mutableStateOf(0f) }
     val notifyPrefs by repository.appPreferencesFlow.collectAsState(

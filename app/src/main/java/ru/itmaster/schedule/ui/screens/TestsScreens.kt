@@ -1,5 +1,6 @@
 package ru.itmaster.schedule.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,8 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -29,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -56,16 +61,20 @@ import ru.itmaster.schedule.ScheduleRepository
 import ru.itmaster.schedule.data.api.TestDetailDto
 import ru.itmaster.schedule.data.api.TestListItemDto
 import ru.itmaster.schedule.data.api.TestQuestionDto
+import ru.itmaster.schedule.data.api.TestStatsAttemptRowDto
+import ru.itmaster.schedule.data.api.TestStatsResponse
 
 @Composable
 fun TestsRoute(
     repository: ScheduleRepository,
     canAccessTests: Boolean,
+    canAccessTestStats: Boolean,
     externalOpenTestId: Long = 0L,
     onExternalOpenHandled: () -> Unit = {},
 ) {
     var openTestId by remember { mutableLongStateOf(0L) }
     var listRefresh by remember { mutableIntStateOf(0) }
+    var testsMainTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(externalOpenTestId) {
         if (externalOpenTestId > 0L) {
@@ -74,7 +83,7 @@ fun TestsRoute(
         }
     }
 
-    if (!canAccessTests) {
+    if (!canAccessTests && !canAccessTestStats) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -83,11 +92,16 @@ fun TestsRoute(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "У вас нет доступа к разделу тестирования.",
+                "У вас нет доступа к тестам и статистике.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        return
+    }
+
+    if (!canAccessTests && canAccessTestStats) {
+        TestStatsRoute(repository = repository)
         return
     }
 
@@ -100,12 +114,239 @@ fun TestsRoute(
                 listRefresh++
             },
         )
+        return
+    }
+
+    if (canAccessTestStats) {
+        Column(Modifier.fillMaxSize()) {
+            TabRow(selectedTabIndex = testsMainTab) {
+                Tab(
+                    selected = testsMainTab == 0,
+                    onClick = { testsMainTab = 0 },
+                    text = { Text("Мои тесты") },
+                )
+                Tab(
+                    selected = testsMainTab == 1,
+                    onClick = { testsMainTab = 1 },
+                    text = { Text("Статистика") },
+                )
+            }
+            when (testsMainTab) {
+                0 -> TestsListRoute(
+                    repository = repository,
+                    refreshSignal = listRefresh,
+                    onOpenTest = { openTestId = it },
+                )
+                1 -> TestStatsRoute(repository = repository)
+            }
+        }
     } else {
         TestsListRoute(
             repository = repository,
             refreshSignal = listRefresh,
             onOpenTest = { openTestId = it },
         )
+    }
+}
+
+@Composable
+private fun TestStatsRoute(
+    repository: ScheduleRepository,
+) {
+    var filterGroupId by remember { mutableLongStateOf(0L) }
+    var page by remember { mutableIntStateOf(1) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var payload by remember { mutableStateOf<TestStatsResponse?>(null) }
+    var retryTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(filterGroupId, page, retryTick) {
+        loading = true
+        error = null
+        repository.loadTestStats(
+            groupId = filterGroupId.takeIf { it > 0L },
+            page = page,
+        ).fold(
+            onSuccess = {
+                payload = it
+                error = null
+            },
+            onFailure = { e ->
+                error = e.message
+                payload = null
+            },
+        )
+        loading = false
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Статистика тестов", style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(8.dp))
+
+        when {
+            loading && payload == null -> {
+                Spacer(Modifier.weight(1f))
+                CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+                Spacer(Modifier.weight(1f))
+            }
+
+            error != null && payload == null -> {
+                Text(error!!, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { retryTick++ }) { Text("Повторить") }
+            }
+
+            payload != null -> {
+                val p = payload!!
+                val chipScroll = rememberScrollState()
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(chipScroll),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = filterGroupId == 0L,
+                        onClick = {
+                            filterGroupId = 0L
+                            page = 1
+                        },
+                        label = { Text("Все группы") },
+                    )
+                    p.groups.forEach { g ->
+                        FilterChip(
+                            selected = filterGroupId == g.id,
+                            onClick = {
+                                filterGroupId = g.id
+                                page = 1
+                            },
+                            label = { Text(g.name) },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Фильтр: ${p.filter.label}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+
+                val summaryRows = p.statsByGroup.entries.sortedBy { it.key }.toList()
+                val attemptsData = p.attempts.data
+                val lastPage = p.attempts.lastPage.coerceAtLeast(1)
+                val curPage = p.attempts.currentPage
+
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    item {
+                        Text("Сводка по группам", style = MaterialTheme.typography.titleMedium)
+                    }
+                    if (summaryRows.isEmpty()) {
+                        item {
+                            Text(
+                                "Нет данных по попыткам.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        items(summaryRows, key = { it.key }) { e ->
+                            val gName = e.key
+                            val s = e.value
+                            Card(
+                                Modifier.fillMaxWidth(),
+                                elevation = CardDefaults.cardElevation(1.dp),
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(gName, style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        "Попыток: ${s.count} · ср. ${s.avg}% · мин ${s.min}% · макс ${s.max}%",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        Spacer(Modifier.height(8.dp))
+                        Text("Попытки", style = MaterialTheme.typography.titleMedium)
+                    }
+                    if (attemptsData.isEmpty()) {
+                        item {
+                            Text(
+                                "На этой странице нет записей.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        items(attemptsData, key = { it.id }) { row ->
+                            TestStatsAttemptCard(row)
+                        }
+                    }
+                    item {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(
+                                onClick = { page = (curPage - 1).coerceAtLeast(1) },
+                                enabled = curPage > 1 && !loading,
+                            ) { Text("Назад") }
+                            Text(
+                                "Стр. $curPage / $lastPage · всего ${p.attempts.total}",
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.widthIn(max = 200.dp),
+                            )
+                            TextButton(
+                                onClick = { page = (curPage + 1).coerceAtMost(lastPage) },
+                                enabled = curPage < lastPage && !loading,
+                            ) { Text("Вперёд") }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TestStatsAttemptCard(row: TestStatsAttemptRowDto) {
+    Card(
+        Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(1.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                row.studentFio?.takeIf { it.isNotBlank() } ?: "—",
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                listOf(
+                    row.groupName?.takeIf { it.isNotBlank() },
+                    row.testTitle?.takeIf { it.isNotBlank() },
+                ).filterNotNull().joinToString(" · ").ifBlank { "—" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "${row.score}/${row.maxScore} · ${row.percentage}% · ${row.grade} (${row.gradeLabel})",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            row.submittedAt?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it.replace('T', ' ').substringBefore('Z').substringBefore('+'),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 

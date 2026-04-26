@@ -14,8 +14,8 @@ android {
         applicationId = "ru.itmaster.schedule"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "2.3.1"
+        versionCode = 8
+        versionName = "2.4.0"
         buildConfigField("String", "FIXED_API_ORIGIN", "\"http://axobeast.ru\"")
         buildConfigField("String", "WEB_SITE_ORIGIN", "\"http://axobeast.ru\"")
         buildConfigField("String", "GITHUB_RELEASES_LATEST_API", "\"https://api.github.com/repos/axobeasty/it-master-android/releases/latest\"")
